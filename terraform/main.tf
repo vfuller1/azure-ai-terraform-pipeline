@@ -10,105 +10,99 @@ terraform {
     }
   }
 
-  required_version = ">=0.14"
+  required_version = ">=1.0"
 }
 
 provider "azurerm" {
   features {}
 }
 
+resource "random_string" "storage_account_suffix" {
+  length = 10
+  special = false
+  upper = false
+}
+
 resource "random_string" "vm_name" {
-  length = 8
+  length = 5
   special = false
+  upper = false
 }
 
-resource "random_string" "storage_name" {
-  length = 16
-  special = false
-  lower = true
-}
-
-resource "resource_group" "main" {
+resource "azurerm_resource_group" "rg" {
   name = "rg-${random_string.vm_name.result}"
   location = "East US"
 }
 
-resource "azurerm_virtual_network" "main" {
+resource "azurerm_virtual_network" "vnet" {
   name = "vnet-${random_string.vm_name.result}"
   address_space = ["10.0.0.0/16"]
-  location = resource_group.main.location
-  resource_group_name = resource_group.main.name
+  location = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
 }
 
-resource "azurerm_subnet" "main" {
+resource "azurerm_subnet" "subnet" {
   name = "subnet-${random_string.vm_name.result}"
-  resource_group_name = resource_group.main.name
-  virtual_network_name = azurerm_virtual_network.main.name
+  resource_group_name = azurerm_resource_group.rg.name
+  virtual_network_name = azurerm_virtual_network.vnet.name
   address_prefixes = ["10.0.1.0/24"]
 }
 
-resource "azurerm_public_ip" "main" {
-  name = "publicip-${random_string.vm_name.result}"
-  location = resource_group.main.location
-  resource_group_name = resource_group.main.name
-  allocation_method = "Static"
-}
-
-resource "azurerm_network_interface" "main" {
+resource "azurerm_network_interface" "nic" {
   name = "nic-${random_string.vm_name.result}"
-  location = resource_group.main.location
-  resource_group_name = resource_group.main.name
+  location = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
 
   ip_configuration {
     name = "ipconfig-${random_string.vm_name.result}"
-    subnet_id = azurerm_subnet.main.id
+    subnet_id = azurerm_subnet.subnet.id
     private_ip_address_allocation = "Dynamic"
-    public_ip_address_id = azurerm_public_ip.main.id
   }
 }
 
-resource "azurerm_linux_virtual_machine" "main" {
+resource "azurerm_virtual_machine" "vm" {
   name = "vm-${random_string.vm_name.result}"
-  resource_group_name = resource_group.main.name
-  location = resource_group.main.location
-  size = "Standard_B1s"  # Low-cost B-series VM
-  admin_username = "adminuser"
-  admin_password = "P@ssw0rd123!"  # Change to a secure password or use SSH key
+  location = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  network_interface_ids = [azurerm_network_interface.nic.id]
+  vm_size = "Standard_B1s" # Low-cost B-series VM
 
-  network_interface_ids = [
-  azurerm_network_interface.main.id,
-  ]
-
-  os_disk {
+  storage_os_disk {
+    name = "osdisk-${random_string.vm_name.result}"
     caching = "ReadWrite"
     create_option = "FromImage"
-    managed_disk_type = "Standard_LRS"  # Low-cost standard storage
+    managed_disk_type = "Standard_LRS" # Low-cost standard storage
   }
 
-  source_image_reference {
-    publisher = "Canonical"
-    offer = "UbuntuServer"
-    sku = "18.04-LTS"
-    version = "latest"
+  os_profile {
+    computer_name = "hostname-${random_string.vm_name.result}"
+    admin_username = "adminuser"
+    admin_password = "P@ssword1234!" # Consider parameterizing for security
+  }
+
+  os_profile_linux_config {
+    disable_password_authentication = false
+  }
+
+  os_profile_windows_config {
+    provision_vm_agent = true
   }
 }
 
-resource "azurerm_storage_account" "main" {
-  name = random_string.storage_name.result
-  resource_group_name = resource_group.main.name
-  location = resource_group.main.location
-  account_tier = "Standard"   # Cost-effective storage tier
-  account_replication_type = "LRS"       # Locally redundant storage
+resource "azurerm_storage_account" "storage" {
+  name = "storage${random_string.storage_account_suffix.result}"
+  resource_group_name = azurerm_resource_group.rg.name
+  location = azurerm_resource_group.rg.location
+  account_tier = "Standard" # Low-cost standard tier
+  account_replication_type = "LRS"     # Low-cost locally redundant storage
+
+  min_tls_version = "TLS1_2"
 }
 
 output "vm_id" {
-  value = azurerm_linux_virtual_machine.main.id
-}
-
-output "public_ip" {
-  value = azurerm_public_ip.main.ip_address
+  value = azurerm_virtual_machine.vm.id
 }
 
 output "storage_account_name" {
-  value = azurerm_storage_account.main.name
+  value = azurerm_storage_account.storage.name
 }
