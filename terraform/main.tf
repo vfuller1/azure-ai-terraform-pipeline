@@ -5,102 +5,79 @@ terraform {
       version = "~> 2.0"
     }
   }
-
-  required_version = ">= 0.12"
 }
 
 provider "azurerm" {
   features {}
 }
 
-# Variable definitions for customization
-
 variable "location" {
-  description = "The Azure region to deploy resources"
+  description = "The Azure location where resources will be created."
   default = "East US"
 }
 
 variable "vm_size" {
-  description = "The size of the virtual machine"
-  default = "Standard_B1s" # B-series VM size optimized for low cost
+  description = "The size of the Virtual Machine."
+  default = "Standard_B1s"
 }
 
 variable "admin_username" {
-  description = "Admin username for the VM"
+  description = "The admin username for the Virtual Machine."
   default = "azureuser"
 }
 
 variable "admin_password" {
-  description = "Admin password for the VM"
-  type = string
-  sensitive = true
+  description = "The admin password for the Virtual Machine."
+  default = "P@ssword1234!" # Change this to a secure password
 }
 
-# Resource group to contain resources
-
-resource "azurerm_resource_group" "main" {
-  name = "low-cost-rg"
+resource "azurerm_resource_group" "example" {
+  name = "example-resources"
   location = var.location
 }
 
-# Virtual network for basic networking
-
-resource "azurerm_virtual_network" "main" {
-  name = "low-cost-vnet"
+resource "azurerm_virtual_network" "example" {
+  name = "example-vnet"
   address_space = ["10.0.0.0/16"]
-  location = azurerm_resource_group.main.location
-  resource_group_name = azurerm_resource_group.main.name
+  location = azurerm_resource_group.example.location
+  resource_group_name = azurerm_resource_group.example.name
 }
 
-# Subnet definition
-
-resource "azurerm_subnet" "main" {
-  name = "low-cost-subnet"
-  resource_group_name = azurerm_resource_group.main.name
-  virtual_network_name = azurerm_virtual_network.main.name
+resource "azurerm_subnet" "example" {
+  name = "example-subnet"
+  resource_group_name = azurerm_resource_group.example.name
+  virtual_network_name = azurerm_virtual_network.example.name
   address_prefixes = ["10.0.1.0/24"]
 }
 
-# Network interface for the VM
-
-resource "azurerm_network_interface" "main" {
-  name = "low-cost-nic"
-  location = azurerm_resource_group.main.location
-  resource_group_name = azurerm_resource_group.main.name
+resource "azurerm_network_interface" "example" {
+  name = "example-nic"
+  location = azurerm_resource_group.example.location
+  resource_group_name = azurerm_resource_group.example.name
 
   ip_configuration {
-    name = "internal"
-    subnet_id = azurerm_subnet.main.id
+    name = "example-ip-config"
+    subnet_id = azurerm_subnet.example.id
     private_ip_address_allocation = "Dynamic"
   }
 }
 
-# Virtual Machine definition
-
-resource "azurerm_linux_virtual_machine" "main" {
-  name = "low-cost-vm"
-  resource_group_name = azurerm_resource_group.main.name
-  location = azurerm_resource_group.main.location
+resource "azurerm_linux_virtual_machine" "example" {
+  name = "example-vm"
+  resource_group_name = azurerm_resource_group.example.name
+  location = azurerm_resource_group.example.location
   size = var.vm_size
+
   admin_username = var.admin_username
   admin_password = var.admin_password
-
-  network_interface_ids = [azurerm_network_interface.main.id]
+  network_interface_ids = [
+  azurerm_network_interface.example.id,
+  ]
 
   os_disk {
     caching = "ReadWrite"
     create_option = "FromImage"
-    managed_disk_type = "Standard_LRS" # Standard storage for cost savings
-  }
-
-  os_profile {
-    computer_name = "low-cost-vm"
-    admin_username = var.admin_username
-    admin_password = var.admin_password
-  }
-
-  os_profile_linux_config {
-    disable_password_authentication = false
+    managed_disk_type = "Standard"
   }
 
   source_image_reference {
@@ -111,12 +88,25 @@ resource "azurerm_linux_virtual_machine" "main" {
   }
 }
 
-# Output essential information
-
-output "vm_id" {
-  value = azurerm_linux_virtual_machine.main.id
+resource "azurerm_storage_account" "example" {
+  name = "examplestoracc"  # This needs to be globally unique
+  resource_group_name = azurerm_resource_group.example.name
+  location = azurerm_resource_group.example.location
+  account_tier = "Standard"
+  account_replication_type = "LRS"  # Locally redundant storage, cost-effective
 }
 
-output "public_ip" {
-  value = azurerm_network_interface.main.private_ip_address
+output "vm_id" {
+  description = "The ID of the Virtual Machine"
+  value = azurerm_linux_virtual_machine.example.id
+}
+
+output "storage_account_name" {
+  description = "The name of the storage account"
+  value = azurerm_storage_account.example.name
+}
+
+output "resource_group_name" {
+  description = "The name of the resource group"
+  value = azurerm_resource_group.example.name
 }
