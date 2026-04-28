@@ -1,109 +1,122 @@
 terraform {
   required_providers {
     azurerm = {
-      source  = "hashicorp/azurerm"
+      source = "hashicorp/azurerm"
       version = "~> 2.0"
     }
   }
+
   required_version = ">= 0.12"
 }
 
 provider "azurerm" {
   features {}
 }
-# Variables for customization
-variable "resource_group_name" {
-  description = "The name of the resource group"
-  type        = string
-  default     = "low-cost-rg"
-}
+
+# Variable definitions for customization
 
 variable "location" {
-  description = "The Azure region for resources"
-  type        = string
-  default     = "East US"
+  description = "The Azure region to deploy resources"
+  default = "East US"
 }
 
 variable "vm_size" {
-  description = "Size of the virtual machine"
-  type        = string
-  default     = "Standard_B1s"  # Optimized for low cost
+  description = "The size of the virtual machine"
+  default = "Standard_B1s" # B-series VM size optimized for low cost
 }
 
 variable "admin_username" {
-  description = "Admin username for the virtual machine"
-  type        = string
-  default     = "adminuser"
+  description = "Admin username for the VM"
+  default = "azureuser"
 }
 
 variable "admin_password" {
-  description = "Admin password for the virtual machine"
-  type        = string
-  sensitive   = true
+  description = "Admin password for the VM"
+  type = string
+  sensitive = true
 }
-# Resource group
+
+# Resource group to contain resources
+
 resource "azurerm_resource_group" "main" {
-  name     = var.resource_group_name
+  name = "low-cost-rg"
   location = var.location
 }
-# Virtual Network
+
+# Virtual network for basic networking
+
 resource "azurerm_virtual_network" "main" {
-  name                = "${var.resource_group_name}-vnet"
-  address_space       = ["10.0.0.0/16"]
-  location            = azurerm_resource_group.main.location
+  name = "low-cost-vnet"
+  address_space = ["10.0.0.0/16"]
+  location = azurerm_resource_group.main.location
   resource_group_name = azurerm_resource_group.main.name
 }
-# Subnet
+
+# Subnet definition
+
 resource "azurerm_subnet" "main" {
-  name                 = "${var.resource_group_name}-subnet"
-  resource_group_name  = azurerm_resource_group.main.name
-  virtual_network_name = azurerm_virtual_network.main.name
-  address_prefixes     = ["10.0.1.0/24"]
-}
-# Network Interface
-resource "azurerm_network_interface" "main" {
-  name                = "${var.resource_group_name}-nic"
-  location            = azurerm_resource_group.main.location
+  name = "low-cost-subnet"
   resource_group_name = azurerm_resource_group.main.name
+  virtual_network_name = azurerm_virtual_network.main.name
+  address_prefixes = ["10.0.1.0/24"]
+}
+
+# Network interface for the VM
+
+resource "azurerm_network_interface" "main" {
+  name = "low-cost-nic"
+  location = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
+
   ip_configuration {
-    name                          = "${var.resource_group_name}-ipconfig"
-    subnet_id                    = azurerm_subnet.main.id
+    name = "internal"
+    subnet_id = azurerm_subnet.main.id
     private_ip_address_allocation = "Dynamic"
   }
 }
-# Virtual Machine
+
+# Virtual Machine definition
+
 resource "azurerm_linux_virtual_machine" "main" {
-  name                = "${var.resource_group_name}-vm"
+  name = "low-cost-vm"
   resource_group_name = azurerm_resource_group.main.name
-  location            = azurerm_resource_group.main.location
-  size                = var.vm_size
-  admin_username      = var.admin_username
-  admin_password      = var.admin_password
-  network_interface_ids = [
-  azurerm_network_interface.main.id,
-  ]
+  location = azurerm_resource_group.main.location
+  size = var.vm_size
+  admin_username = var.admin_username
+  admin_password = var.admin_password
+
+  network_interface_ids = [azurerm_network_interface.main.id]
+
   os_disk {
-    caching              = "ReadWrite"
-    create_option        = "FromImage"
-    managed_disk_type    = "Standard_LRS"  # Standard storage for cost efficiency
+    caching = "ReadWrite"
+    create_option = "FromImage"
+    managed_disk_type = "Standard_LRS" # Standard storage for cost savings
   }
+
+  os_profile {
+    computer_name = "low-cost-vm"
+    admin_username = var.admin_username
+    admin_password = var.admin_password
+  }
+
+  os_profile_linux_config {
+    disable_password_authentication = false
+  }
+
   source_image_reference {
     publisher = "Canonical"
-    offer     = "UbuntuServer"
-    sku       = "20.04-LTS"
-    version   = "latest"
+    offer = "UbuntuServer"
+    sku = "18.04-LTS"
+    version = "latest"
   }
 }
-# Outputs for important values
-output "resource_group_name" {
-  value = azurerm_resource_group.main.name
+
+# Output essential information
+
+output "vm_id" {
+  value = azurerm_linux_virtual_machine.main.id
 }
 
-output "vm_public_ip" {
+output "public_ip" {
   value = azurerm_network_interface.main.private_ip_address
-}
-
-output "vm_admin_username" {
-  value = azurerm_linux_virtual_machine.main.admin_username
-  sensitive = true
 }
