@@ -2,82 +2,85 @@ terraform {
   required_providers {
     azurerm = {
       source = "hashicorp/azurerm"
-      version = "~> 2.0"
+      version = "~> 3.0"
+    }
+    random = {
+      source = "hashicorp/random"
+      version = "~> 3.0"
     }
   }
+
+  required_version = ">= 1.0"
 }
 
 provider "azurerm" {
   features {}
 }
 
-variable "location" {
-  description = "The Azure location where resources will be created."
-  default = "East US"
+resource "random_string" "storage_account_suffix" {
+  length = 10
+  upper = false
+  special = false
 }
 
-variable "vm_size" {
-  description = "The size of the Virtual Machine."
-  default = "Standard_B1s"
+resource "random_string" "vm_name_suffix" {
+  length = 5
+  upper = false
+  special = false
 }
 
-variable "admin_username" {
-  description = "The admin username for the Virtual Machine."
-  default = "azureuser"
+resource "azurerm_resource_group" "main" {
+  name = "rg-${random_string.vm_name_suffix.result}"
+  location = "East US"
 }
 
-variable "admin_password" {
-  description = "The admin password for the Virtual Machine."
-  default = "P@ssword1234!" # Change this to a secure password
-}
-
-resource "azurerm_resource_group" "example" {
-  name = "example-resources"
-  location = var.location
-}
-
-resource "azurerm_virtual_network" "example" {
-  name = "example-vnet"
+resource "azurerm_virtual_network" "main" {
+  name = "vnet-${random_string.vm_name_suffix.result}"
+  resource_group_name = azurerm_resource_group.main.name
   address_space = ["10.0.0.0/16"]
-  location = azurerm_resource_group.example.location
-  resource_group_name = azurerm_resource_group.example.name
+
+  subnet {
+    name = "subnet-${random_string.vm_name_suffix.result}"
+    address_prefix = "10.0.1.0/24"
+  }
 }
 
-resource "azurerm_subnet" "example" {
-  name = "example-subnet"
-  resource_group_name = azurerm_resource_group.example.name
-  virtual_network_name = azurerm_virtual_network.example.name
-  address_prefixes = ["10.0.1.0/24"]
-}
-
-resource "azurerm_network_interface" "example" {
-  name = "example-nic"
-  location = azurerm_resource_group.example.location
-  resource_group_name = azurerm_resource_group.example.name
+resource "azurerm_network_interface" "main" {
+  name = "nic-${random_string.vm_name_suffix.result}"
+  location = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
 
   ip_configuration {
-    name = "example-ip-config"
-    subnet_id = azurerm_subnet.example.id
+    name = "ipconfig-${random_string.vm_name_suffix.result}"
+    subnet_id = azurerm_virtual_network.main.subnet[0].id
     private_ip_address_allocation = "Dynamic"
   }
 }
 
-resource "azurerm_linux_virtual_machine" "example" {
-  name = "example-vm"
-  resource_group_name = azurerm_resource_group.example.name
-  location = azurerm_resource_group.example.location
-  size = var.vm_size
+resource "azurerm_storage_account" "main" {
+  name = "st${random_string.storage_account_suffix.result}"
+  resource_group_name = azurerm_resource_group.main.name
+  location = azurerm_resource_group.main.location
+  account_tier = "Standard"
+  account_replication_type = "LRS"
+  is_hns_enabled = false
+}
 
-  admin_username = var.admin_username
-  admin_password = var.admin_password
+resource "azurerm_linux_virtual_machine" "main" {
+  name = "vm-${random_string.vm_name_suffix.result}"
+  resource_group_name = azurerm_resource_group.main.name
+  location = azurerm_resource_group.main.location
+  size = "Standard_B1s"  # Low cost B-series VM
+  admin_username = "azureuser"
+  admin_password = "Password12345!" # Use secure methods for password in production
+
   network_interface_ids = [
-  azurerm_network_interface.example.id,
+  azurerm_network_interface.main.id,
   ]
 
   os_disk {
     caching = "ReadWrite"
-    create_option = "FromImage"
-    managed_disk_type = "Standard"
+    managed_disk_type = "Standard_LRS"  # Standard storage for cost efficiency
   }
 
   source_image_reference {
@@ -88,25 +91,10 @@ resource "azurerm_linux_virtual_machine" "example" {
   }
 }
 
-resource "azurerm_storage_account" "example" {
-  name = "examplestoracc"  # This needs to be globally unique
-  resource_group_name = azurerm_resource_group.example.name
-  location = azurerm_resource_group.example.location
-  account_tier = "Standard"
-  account_replication_type = "LRS"  # Locally redundant storage, cost-effective
-}
-
 output "vm_id" {
-  description = "The ID of the Virtual Machine"
-  value = azurerm_linux_virtual_machine.example.id
+  value = azurerm_linux_virtual_machine.main.id
 }
 
 output "storage_account_name" {
-  description = "The name of the storage account"
-  value = azurerm_storage_account.example.name
-}
-
-output "resource_group_name" {
-  description = "The name of the resource group"
-  value = azurerm_resource_group.example.name
+  value = azurerm_storage_account.main.name
 }
