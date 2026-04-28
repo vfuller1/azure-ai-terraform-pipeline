@@ -2,87 +2,112 @@ terraform {
   required_providers {
     azurerm = {
       source = "hashicorp/azurerm"
-      version = "~> 3.0"
+      version = "~> 2.0"
     }
     random = {
       source = "hashicorp/random"
       version = "~> 3.0"
     }
   }
-
-  required_version = ">= 1.0"
 }
 
 provider "azurerm" {
   features {}
 }
 
-resource "random_string" "storage_account_suffix" {
-  length = 10
-  upper = false
-  special = false
+provider "random" {}
+
+# Variables for customization
+
+variable "location" {
+  description = "The Azure location where resources will be created."
+  default = "East US"
 }
 
-resource "random_string" "vm_name_suffix" {
-  length = 5
-  upper = false
-  special = false
+variable "vm_size" {
+  description = "Size of the Virtual Machine."
+  default = "Standard_B1s" # B-series VMs for low cost
 }
+
+# Random string for unique resource names
+
+resource "random_string" "vm_name" {
+  length = 8
+  special = false
+  upper = false
+}
+
+resource "random_string" "storage_account_name" {
+  length = 16
+  special = false
+  upper = false
+}
+
+resource "random_string" "vnet_name" {
+  length = 10
+  special = false
+  upper = false
+}
+
+resource "random_string" "subnet_name" {
+  length = 10
+  special = false
+  upper = false
+}
+
+# Resource Group
 
 resource "azurerm_resource_group" "main" {
-  name = "rg-${random_string.vm_name_suffix.result}"
-  location = "East US"
+  name = "${random_string.vnet_name.result}-rg"
+  location = var.location
 }
+
+# Virtual Network
 
 resource "azurerm_virtual_network" "main" {
-  name = "vnet-${random_string.vm_name_suffix.result}"
-  resource_group_name = azurerm_resource_group.main.name
+  name = "${random_string.vnet_name.result}-vnet"
   address_space = ["10.0.0.0/16"]
-
-  subnet {
-    name = "subnet-${random_string.vm_name_suffix.result}"
-    address_prefix = "10.0.1.0/24"
-  }
+  location = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
 }
 
+# Subnet
+
+resource "azurerm_subnet" "main" {
+  name = "${random_string.subnet_name.result}-subnet"
+  resource_group_name = azurerm_resource_group.main.name
+  virtual_network_name = azurerm_virtual_network.main.name
+  address_prefixes = ["10.0.1.0/24"]
+}
+
+# Network Interface
+
 resource "azurerm_network_interface" "main" {
-  name = "nic-${random_string.vm_name_suffix.result}"
+  name = "${random_string.vm_name.result}-nic"
   location = azurerm_resource_group.main.location
   resource_group_name = azurerm_resource_group.main.name
 
   ip_configuration {
-    name = "ipconfig-${random_string.vm_name_suffix.result}"
-    subnet_id = azurerm_virtual_network.main.subnet[0].id
+    name = "internal"
+    subnet_id = azurerm_subnet.main.id
     private_ip_address_allocation = "Dynamic"
   }
 }
 
-resource "azurerm_storage_account" "main" {
-  name = "st${random_string.storage_account_suffix.result}"
-  resource_group_name = azurerm_resource_group.main.name
-  location = azurerm_resource_group.main.location
-  account_tier = "Standard"
-  account_replication_type = "LRS"
-  is_hns_enabled = false
-}
+# Virtual Machine
 
 resource "azurerm_linux_virtual_machine" "main" {
-  name = "vm-${random_string.vm_name_suffix.result}"
+  name = "${random_string.vm_name.result}-vm"
   resource_group_name = azurerm_resource_group.main.name
   location = azurerm_resource_group.main.location
-  size = "Standard_B1s"  # Low cost B-series VM
-  admin_username = "azureuser"
-  admin_password = "Password12345!" # Use secure methods for password in production
-
-  network_interface_ids = [
-  azurerm_network_interface.main.id,
-  ]
-
+  size = var.vm_size
+  admin_username = "adminuser"
+  admin_password = "P@ssword123!" # Use secure method for password
+  network_interface_ids = [azurerm_network_interface.main.id]
   os_disk {
     caching = "ReadWrite"
-    managed_disk_type = "Standard_LRS"  # Standard storage for cost efficiency
+    create_option = "FromImage"
   }
-
   source_image_reference {
     publisher = "Canonical"
     offer = "UbuntuServer"
@@ -91,10 +116,23 @@ resource "azurerm_linux_virtual_machine" "main" {
   }
 }
 
+# Storage Account for standard storage
+
+resource "azurerm_storage_account" "main" {
+  name = "${random_string.storage_account_name.result}"
+  resource_group_name = azurerm_resource_group.main.name
+  location = azurerm_resource_group.main.location
+  account_tier = "Standard"
+  account_replication_type = "LRS" # Locally redundant storage for cost efficiency
+  enable_https_traffic_only = true
+}
+
+# Outputs for important values
+
 output "vm_id" {
   value = azurerm_linux_virtual_machine.main.id
 }
 
-output "storage_account_name" {
-  value = azurerm_storage_account.main.name
+output "storage_account_id" {
+  value = azurerm_storage_account.main.id
 }
