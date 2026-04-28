@@ -22,60 +22,58 @@ resource "random_string" "suffix" {
   special = false
 }
 
-resource "azurerm_resource_group" "rg" {
-  name = "rg-${random_string.suffix.result}"
+resource "azurerm_resource_group" "example" {
+  name = "rg-example-${random_string.suffix.result}"
   location = "East US"
 }
 
-resource "azurerm_virtual_network" "vnet" {
-  name = "vnet-${random_string.suffix.result}"
+resource "azurerm_virtual_network" "example" {
+  name = "vnet-example-${random_string.suffix.result}"
   address_space = ["10.0.0.0/16"]
-  location = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
+  location = azurerm_resource_group.example.location
+  resource_group_name = azurerm_resource_group.example.name
 }
 
-resource "azurerm_subnet" "subnet" {
-  name = "subnet-${random_string.suffix.result}"
-  resource_group_name = azurerm_resource_group.rg.name
-  virtual_network_name = azurerm_virtual_network.vnet.name
+resource "azurerm_subnet" "example" {
+  name = "subnet-example-${random_string.suffix.result}"
+  resource_group_name = azurerm_resource_group.example.name
+  virtual_network_name = azurerm_virtual_network.example.name
   address_prefixes = ["10.0.1.0/24"]
 }
 
-resource "azurerm_public_ip" "public_ip" {
-  name = "publicip-${random_string.suffix.result}"
-  resource_group_name = azurerm_resource_group.rg.name
-  location = azurerm_resource_group.rg.location
+resource "azurerm_public_ip" "example" {
+  name = "pip-example-${random_string.suffix.result}"
+  location = azurerm_resource_group.example.location
+  resource_group_name = azurerm_resource_group.example.name
   allocation_method = "Dynamic"
 }
 
-resource "azurerm_network_interface" "nic" {
-  name = "nic-${random_string.suffix.result}"
-  location = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
+resource "azurerm_network_interface" "example" {
+  name = "nic-example-${random_string.suffix.result}"
+  location = azurerm_resource_group.example.location
+  resource_group_name = azurerm_resource_group.example.name
 
   ip_configuration {
-    name = "ipconfig-${random_string.suffix.result}"
-    subnet_id = azurerm_subnet.subnet.id
-    public_ip_address_id = azurerm_public_ip.public_ip.id
+    name = "ipconfig-example"
+    subnet_id = azurerm_subnet.example.id
+    private_ip_address_allocation = "Dynamic"
+    public_ip_address_id = azurerm_public_ip.example.id
   }
 }
 
-resource "azurerm_linux_virtual_machine" "vm" {
-  name = "vm-${random_string.suffix.result}"
-  resource_group_name = azurerm_resource_group.rg.name
-  location = azurerm_resource_group.rg.location
-  size = "Standard_B1s"  # B-series VM for cost efficiency
+resource "azurerm_linux_virtual_machine" "example" {
+  name = "vm-example-${random_string.suffix.result}"
+  resource_group_name = azurerm_resource_group.example.name
+  location = azurerm_resource_group.example.location
+  size = "Standard_B1s" # B-series VM for cost optimization
   admin_username = "adminuser"
-  admin_password = random_string.password.result
-
-  network_interface_ids = [
-  azurerm_network_interface.nic.id,
-  ]
+  admin_password = "P@ssw0rd123!"  # Update for security
+  network_interface_ids = [azurerm_network_interface.example.id]
 
   os_disk {
     caching = "ReadWrite"
     create_option = "FromImage"
-    managed_disk_type = "Standard_LRS"  # Standard_LRS for cost efficiency
+    managed_disk_type = "Standard_LRS" # Cost-effective storage
   }
 
   source_image_reference {
@@ -86,19 +84,14 @@ resource "azurerm_linux_virtual_machine" "vm" {
   }
 }
 
-resource "random_password" "password" {
-  length = 12
-  special = true
+output "admin_username" {
+  value = azurerm_linux_virtual_machine.example.admin_username
 }
 
-output "resource_group_name" {
-  value = azurerm_resource_group.rg.name
+output "public_ip" {
+  value = azurerm_public_ip.example.ip_address
 }
 
-output "vm_public_ip" {
-  value = azurerm_public_ip.public_ip.ip_address
-}
-
-output "vm_name" {
-  value = azurerm_linux_virtual_machine.vm.name
+output "virtual_machine_id" {
+  value = azurerm_linux_virtual_machine.example.id
 }
