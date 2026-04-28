@@ -5,7 +5,7 @@ terraform {
       version = "~> 2.0"
     }
   }
-  required_version = "> = 0.12"
+  required_version = ">= 0.12"
 }
 
 provider "azurerm" {
@@ -13,35 +13,35 @@ provider "azurerm" {
 }
 # Variables for customization
 variable "resource_group_name" {
-  description = "Name of the resource group"
+  description = "The name of the resource group"
   type        = string
-  default     = "lowcost-rg"
+  default     = "low-cost-rg"
 }
 
 variable "location" {
-  description = "Location for all resources"
+  description = "The Azure region for resources"
   type        = string
   default     = "East US"
 }
 
-variable "vm_name" {
-  description = "Name of the virtual machine"
+variable "vm_size" {
+  description = "Size of the virtual machine"
   type        = string
-  default     = "lowcost-vm"
+  default     = "Standard_B1s"  # Optimized for low cost
 }
 
 variable "admin_username" {
-  description = "Admin username for the VM"
+  description = "Admin username for the virtual machine"
   type        = string
   default     = "adminuser"
 }
 
 variable "admin_password" {
-  description = "Admin password for the VM"
+  description = "Admin password for the virtual machine"
   type        = string
   sensitive   = true
 }
-# Resource Group
+# Resource group
 resource "azurerm_resource_group" "main" {
   name     = var.resource_group_name
   location = var.location
@@ -62,45 +62,48 @@ resource "azurerm_subnet" "main" {
 }
 # Network Interface
 resource "azurerm_network_interface" "main" {
-  name                = "${var.vm_name}-nic"
+  name                = "${var.resource_group_name}-nic"
   location            = azurerm_resource_group.main.location
   resource_group_name = azurerm_resource_group.main.name
   ip_configuration {
-    name                          = "${var.vm_name}-ipconfig"
+    name                          = "${var.resource_group_name}-ipconfig"
     subnet_id                    = azurerm_subnet.main.id
     private_ip_address_allocation = "Dynamic"
   }
 }
-# B-series Virtual Machine
+# Virtual Machine
 resource "azurerm_linux_virtual_machine" "main" {
-  name                = var.vm_name
+  name                = "${var.resource_group_name}-vm"
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
-  size                = "Standard_B1s"  # Low-cost B-series VM
+  size                = var.vm_size
   admin_username      = var.admin_username
   admin_password      = var.admin_password
-  network_interface_ids = [azurerm_network_interface.main.id]
+  network_interface_ids = [
+  azurerm_network_interface.main.id,
+  ]
   os_disk {
     caching              = "ReadWrite"
     create_option        = "FromImage"
-    managed_disk_type    = "Standard_LRS"  # Cost-effective standard storage
+    managed_disk_type    = "Standard_LRS"  # Standard storage for cost efficiency
   }
   source_image_reference {
     publisher = "Canonical"
     offer     = "UbuntuServer"
-    sku       = "18.04-LTS"
+    sku       = "20.04-LTS"
     version   = "latest"
   }
 }
-# Outputs
-output "vm_id" {
-  value = azurerm_linux_virtual_machine.main.id
-}
-
-output "network_interface_id" {
-  value = azurerm_network_interface.main.id
-}
-
-output "resource_group" {
+# Outputs for important values
+output "resource_group_name" {
   value = azurerm_resource_group.main.name
+}
+
+output "vm_public_ip" {
+  value = azurerm_network_interface.main.private_ip_address
+}
+
+output "vm_admin_username" {
+  value = azurerm_linux_virtual_machine.main.admin_username
+  sensitive = true
 }
