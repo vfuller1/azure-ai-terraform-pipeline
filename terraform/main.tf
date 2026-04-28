@@ -22,78 +22,83 @@ resource "random_string" "suffix" {
   special = false
 }
 
-variable "location" {
-  description = "The Azure region to deploy resources."
-  default = "East US"
-}
-
-variable "vm_size" {
-  description = "The size of the Virtual Machine."
-  default = "Standard_B1s" # B-series VM for low cost
-}
-
-resource "azurerm_resource_group" "example" {
+resource "azurerm_resource_group" "rg" {
   name = "rg-${random_string.suffix.result}"
-  location = var.location
+  location = "East US"
 }
 
-resource "azurerm_virtual_network" "example" {
+resource "azurerm_storage_account" "storage" {
+  name = "st${random_string.suffix.result}"
+  resource_group_name = azurerm_resource_group.rg.name
+  location = azurerm_resource_group.rg.location
+  account_tier = "Standard"
+  account_replication_type = "LRS"
+}
+
+resource "azurerm_virtual_network" "vnet" {
   name = "vnet-${random_string.suffix.result}"
+  resource_group_name = azurerm_resource_group.rg.name
+  location = azurerm_resource_group.rg.location
   address_space = ["10.0.0.0/16"]
-  location = azurerm_resource_group.example.location
-  resource_group_name = azurerm_resource_group.example.name
 }
 
-resource "azurerm_subnet" "example" {
+resource "azurerm_subnet" "subnet" {
   name = "subnet-${random_string.suffix.result}"
-  resource_group_name = azurerm_resource_group.example.name
-  virtual_network_name = azurerm_virtual_network.example.name
+  resource_group_name = azurerm_resource_group.rg.name
+  virtual_network_name = azurerm_virtual_network.vnet.name
   address_prefixes = ["10.0.1.0/24"]
 }
 
-resource "azurerm_network_interface" "example" {
+resource "azurerm_public_ip" "public_ip" {
+  name = "pip-${random_string.suffix.result}"
+  resource_group_name = azurerm_resource_group.rg.name
+  location = azurerm_resource_group.rg.location
+  allocation_method = "Static"
+}
+
+resource "azurerm_network_interface" "nic" {
   name = "nic-${random_string.suffix.result}"
-  location = azurerm_resource_group.example.location
-  resource_group_name = azurerm_resource_group.example.name
+  resource_group_name = azurerm_resource_group.rg.name
+  location = azurerm_resource_group.rg.location
 
   ip_configuration {
     name = "ipconfig-${random_string.suffix.result}"
-    subnet_id = azurerm_subnet.example.id
+    subnet_id = azurerm_subnet.subnet.id
     private_ip_address_allocation = "Dynamic"
+    public_ip_address_id = azurerm_public_ip.public_ip.id
   }
 }
 
-resource "azurerm_linux_virtual_machine" "example" {
+resource "azurerm_windows_virtual_machine" "vm" {
   name = "vm-${random_string.suffix.result}"
-  resource_group_name = azurerm_resource_group.example.name
-  location = azurerm_resource_group.example.location
-  size = var.vm_size
-  admin_username = "azureuser"
-  admin_password = "P@ssword123!" # Replace with a more secure password or use SSH keys
-  network_interface_ids = [azurerm_network_interface.example.id]
-
+  resource_group_name = azurerm_resource_group.rg.name
+  location = azurerm_resource_group.rg.location
+  size = "Standard_B1s"  # Low-cost B-series VM
+  admin_username = "adminuser"
+  admin_password = "P@ssword1234!"  # Change for security
+  network_interface_ids = [azurerm_network_interface.nic.id]
   os_disk {
     caching = "ReadWrite"
     create_option = "FromImage"
-    managed_disk_type = "Standard_LRS" # Standard SSD for cost optimization
+    managed_disk_type = "Standard_LRS"  # Low-cost standard storage
   }
 
   source_image_reference {
-    publisher = "Canonical"
-    offer = "UbuntuServer"
-    sku = "20.04-LTS"
+    publisher = "MicrosoftWindowsServer"
+    offer = "WindowsServer"
+    sku = "2019-Datacenter"
     version = "latest"
   }
 }
 
 output "resource_group_name" {
-  value = azurerm_resource_group.example.name
+  value = azurerm_resource_group.rg.name
+}
+
+output "storage_account_name" {
+  value = azurerm_storage_account.storage.name
 }
 
 output "vm_name" {
-  value = azurerm_linux_virtual_machine.example.name
-}
-
-output "admin_username" {
-  value = azurerm_linux_virtual_machine.example.admin_username
+  value = azurerm_windows_virtual_machine.vm.name
 }
