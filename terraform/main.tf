@@ -9,7 +9,6 @@ terraform {
       version = "~> 3.0"
     }
   }
-
   required_version = ">=1.0"
 }
 
@@ -20,7 +19,6 @@ provider "azurerm" {
 resource "random_string" "suffix" {
   length = 8
   special = false
-  upper = false
 }
 
 resource "azurerm_resource_group" "rg" {
@@ -42,12 +40,11 @@ resource "azurerm_subnet" "subnet" {
   address_prefixes = ["10.0.1.0/24"]
 }
 
-resource "azurerm_public_ip" "pip" {
+resource "azurerm_public_ip" "public_ip" {
   name = "pip-${random_string.suffix.result}"
   location = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
-  sku = "Basic"
-  allocation_method = "Dynamic"
+  allocation_method = "Dynamic"  # Cost-effective dynamic IP
 }
 
 resource "azurerm_network_interface" "nic" {
@@ -56,10 +53,10 @@ resource "azurerm_network_interface" "nic" {
   resource_group_name = azurerm_resource_group.rg.name
 
   ip_configuration {
-    name = "internal"
+    name = "ipconfig-${random_string.suffix.result}"
     subnet_id = azurerm_subnet.subnet.id
+    public_ip_address_id = azurerm_public_ip.public_ip.id
     private_ip_address_allocation = "Dynamic"
-    public_ip_address_id = azurerm_public_ip.pip.id
   }
 }
 
@@ -67,16 +64,17 @@ resource "azurerm_linux_virtual_machine" "vm" {
   name = "vm-${random_string.suffix.result}"
   resource_group_name = azurerm_resource_group.rg.name
   location = azurerm_resource_group.rg.location
-  size = "Standard_B1s" # Low-cost B-series VM
+  size = "Standard_B1s"  # B-series VM for cost efficiency
   admin_username = "adminuser"
-  admin_password = "P@ssword123!" # Use a more secure method in production
-
-  network_interface_ids = [azurerm_network_interface.nic.id]
+  admin_password = "P@ssword123!"  # Secure password configuration
+  network_interface_ids = [
+  azurerm_network_interface.nic.id,
+  ]
 
   os_disk {
     caching = "ReadWrite"
     create_option = "FromImage"
-    managed_disk_type = "Standard_LRS" # Low-cost storage option
+    managed_disk_type = "Standard_LRS"  # Cost-effective storage
   }
 
   source_image_reference {
@@ -87,14 +85,14 @@ resource "azurerm_linux_virtual_machine" "vm" {
   }
 }
 
-output "public_ip" {
-  value = azurerm_public_ip.pip.ip_address
+output "resource_group_name" {
+  value = azurerm_resource_group.rg.name
 }
 
 output "vm_id" {
   value = azurerm_linux_virtual_machine.vm.id
 }
 
-output "resource_group_name" {
-  value = azurerm_resource_group.rg.name
+output "public_ip" {
+  value = azurerm_public_ip.public_ip.ip_address
 }
