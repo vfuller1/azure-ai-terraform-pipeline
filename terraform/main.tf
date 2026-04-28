@@ -9,6 +9,7 @@ terraform {
       version = "~> 3.0"
     }
   }
+
   required_version = ">=1.0"
 }
 
@@ -40,13 +41,6 @@ resource "azurerm_subnet" "subnet" {
   address_prefixes = ["10.0.1.0/24"]
 }
 
-resource "azurerm_public_ip" "public_ip" {
-  name = "pip-${random_string.suffix.result}"
-  location = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
-  allocation_method = "Dynamic"  # Cost-effective dynamic IP
-}
-
 resource "azurerm_network_interface" "nic" {
   name = "nic-${random_string.suffix.result}"
   location = azurerm_resource_group.rg.location
@@ -55,7 +49,6 @@ resource "azurerm_network_interface" "nic" {
   ip_configuration {
     name = "ipconfig-${random_string.suffix.result}"
     subnet_id = azurerm_subnet.subnet.id
-    public_ip_address_id = azurerm_public_ip.public_ip.id
     private_ip_address_allocation = "Dynamic"
   }
 }
@@ -64,25 +57,28 @@ resource "azurerm_linux_virtual_machine" "vm" {
   name = "vm-${random_string.suffix.result}"
   resource_group_name = azurerm_resource_group.rg.name
   location = azurerm_resource_group.rg.location
-  size = "Standard_B1s"  # B-series VM for cost efficiency
+  size = "Standard_B1s"  # Low-cost B-series VM
   admin_username = "adminuser"
-  admin_password = "P@ssword123!"  # Secure password configuration
+  admin_password = "Password123!"  # Secure password generation recommended
+
   network_interface_ids = [
   azurerm_network_interface.nic.id,
   ]
 
-  os_disk {
-    caching = "ReadWrite"
-    create_option = "FromImage"
-    managed_disk_type = "Standard_LRS"  # Cost-effective storage
-  }
-
   source_image_reference {
     publisher = "Canonical"
     offer = "UbuntuServer"
-    sku = "20.04-LTS"
+    sku = "18.04-LTS"
     version = "latest"
   }
+}
+
+resource "azurerm_storage_account" "storage" {
+  name = "st${random_string.suffix.result}"
+  resource_group_name = azurerm_resource_group.rg.name
+  location = azurerm_resource_group.rg.location
+  account_tier = "Standard"      # Cost-effective storage tier
+  account_replication_type = "LRS"          # Locally redundant storage
 }
 
 output "resource_group_name" {
@@ -93,6 +89,6 @@ output "vm_id" {
   value = azurerm_linux_virtual_machine.vm.id
 }
 
-output "public_ip" {
-  value = azurerm_public_ip.public_ip.ip_address
+output "storage_account_name" {
+  value = azurerm_storage_account.storage.name
 }
