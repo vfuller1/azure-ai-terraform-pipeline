@@ -18,6 +18,15 @@ provider "azurerm" {
   features {}
 }
 
+terraform {
+  backend "azurerm" {
+    resource_group_name  = "tfstate-rg"
+    storage_account_name = "terraformapproval"
+    container_name       = "tfstate"
+    key                  = "terraform.tfstate"
+  }
+}
+
 resource "random_string" "suffix" {
   length  = 8
   special = false
