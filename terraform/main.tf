@@ -65,7 +65,7 @@ resource "azurerm_linux_virtual_machine" "main" {
   location = azurerm_resource_group.main.location
   size = "Standard_B1s"  # B-series VM for cost-effectiveness
   admin_username = "adminuser"
-  admin_password = var.vm_admin_password
+  admin_password = random_password.password.result
   network_interface_ids = [
   azurerm_network_interface.main.id,
   ]
@@ -90,6 +90,11 @@ resource "azurerm_storage_account" "main" {
   location = azurerm_resource_group.main.location
   account_tier = "Standard"  # Cost-effective tier
   account_replication_type = "LRS"  # Locally redundant storage
+}
+
+resource "random_password" "password" {
+  length = 12
+  special = true
 }
 
 variable "vm_admin_password" {
