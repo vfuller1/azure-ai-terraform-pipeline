@@ -90,7 +90,7 @@ resource "azurerm_storage_account" "main" {
   resource_group_name = azurerm_resource_group.main.name
   location = azurerm_resource_group.main.location
   account_tier = "Standard"  # Cost-effective tier
-  account_replication_type = "LRS"  # Locally redundant storage
+  account_replication_type = "LRS"      # Locally redundant storage
 }
 
 resource "random_password" "password" {
