@@ -24,75 +24,78 @@ provider "azurerm" {
 
 resource "random_string" "suffix" {
   length = 8
-  lower = true
-  upper = false
-  numeric = true
   special = false
 }
 
-resource "azurerm_resource_group" "example" {
+resource "azurerm_resource_group" "main" {
   name = "rg-${random_string.suffix.result}"
-  location = "East US"  # Cost-effective region
+  location = "East US"
 }
 
-resource "azurerm_virtual_network" "example" {
+resource "azurerm_storage_account" "main" {
+  name = "st${random_string.suffix.result}"
+  resource_group_name = azurerm_resource_group.main.name
+  location = azurerm_resource_group.main.location
+  account_tier = "Standard"
+  account_replication_type = "LRS"
+}
+
+resource "azurerm_virtual_network" "main" {
   name = "vnet-${random_string.suffix.result}"
+  resource_group_name = azurerm_resource_group.main.name
+  location = azurerm_resource_group.main.location
   address_space = ["10.0.0.0/16"]
-  location = azurerm_resource_group.example.location
-  resource_group_name = azurerm_resource_group.example.name
 }
 
-resource "azurerm_subnet" "example" {
+resource "azurerm_subnet" "main" {
   name = "subnet-${random_string.suffix.result}"
-  resource_group_name = azurerm_resource_group.example.name
-  virtual_network_name = azurerm_virtual_network.example.name
+  resource_group_name = azurerm_resource_group.main.name
+  virtual_network_name = azurerm_virtual_network.main.name
   address_prefixes = ["10.0.1.0/24"]
 }
 
-resource "azurerm_network_interface" "example" {
+resource "azurerm_network_interface" "main" {
   name = "nic-${random_string.suffix.result}"
-  location = azurerm_resource_group.example.location
-  resource_group_name = azurerm_resource_group.example.name
+  location = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
 
   ip_configuration {
     name = "ipconfig-${random_string.suffix.result}"
-    subnet_id = azurerm_subnet.example.id
+    subnet_id = azurerm_subnet.main.id
     private_ip_address_allocation = "Dynamic"
   }
 }
 
-resource "azurerm_linux_virtual_machine" "example" {
+resource "azurerm_linux_virtual_machine" "main" {
   name = "vm-${random_string.suffix.result}"
-  resource_group_name = azurerm_resource_group.example.name
-  location = azurerm_resource_group.example.location
-  size = "Standard_B1s"  # B-series for cost optimization
+  resource_group_name = azurerm_resource_group.main.name
+  location = azurerm_resource_group.main.location
+  size = "Standard_B1s"  # Cost-effective B-series VM
   admin_username = "adminuser"
-  admin_password = "P@ssw0rd1234!" # Change this to a secure password
-
-  network_interface_ids = [azurerm_network_interface.example.id]
+  admin_password = "P@ssword123!"  # Use secure password management
+  network_interface_ids = [azurerm_network_interface.main.id]
 
   os_disk {
     caching = "ReadWrite"
-    create_option = "FromImage"
-    managed_disk_type = "Standard_LRS"  # Cost-effective option
+    managed_disk_type = "Standard_LRS"  # Optimizing storage cost
   }
 
   source_image_reference {
     publisher = "Canonical"
     offer = "UbuntuServer"
-    sku = "20.04-LTS"
+    sku = "20.04-lts"
     version = "latest"
   }
 }
 
 output "resource_group_name" {
-  value = azurerm_resource_group.example.name
+  value = azurerm_resource_group.main.name
+}
+
+output "storage_account_name" {
+  value = azurerm_storage_account.main.name
 }
 
 output "virtual_machine_id" {
-  value = azurerm_linux_virtual_machine.example.id
-}
-
-output "network_interface_id" {
-  value = azurerm_network_interface.example.id
+  value = azurerm_linux_virtual_machine.main.id
 }
