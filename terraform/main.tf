@@ -9,7 +9,13 @@ terraform {
       version = "~> 3.0"
     }
   }
-  required_version = ">=1.0"
+
+  backend "azurerm" {
+    resource_group_name = "tfstate-rg"
+    storage_account_name = "terraformapproval"
+    container_name = "tfstate"
+    key = "terraform.tfstate"
+  }
 }
 
 provider "azurerm" {
@@ -18,63 +24,57 @@ provider "azurerm" {
 
 resource "random_string" "suffix" {
   length = 8
+  lower = true
+  upper = false
+  numeric = true
   special = false
 }
 
-resource "azurerm_resource_group" "main" {
+resource "azurerm_resource_group" "example" {
   name = "rg-${random_string.suffix.result}"
-  location = "East US"
+  location = "East US"  # Cost-effective region
 }
 
-resource "azurerm_virtual_network" "main" {
+resource "azurerm_virtual_network" "example" {
   name = "vnet-${random_string.suffix.result}"
   address_space = ["10.0.0.0/16"]
-  location = azurerm_resource_group.main.location
-  resource_group_name = azurerm_resource_group.main.name
+  location = azurerm_resource_group.example.location
+  resource_group_name = azurerm_resource_group.example.name
 }
 
-resource "azurerm_subnet" "main" {
+resource "azurerm_subnet" "example" {
   name = "subnet-${random_string.suffix.result}"
-  resource_group_name = azurerm_resource_group.main.name
-  virtual_network_name = azurerm_virtual_network.main.name
+  resource_group_name = azurerm_resource_group.example.name
+  virtual_network_name = azurerm_virtual_network.example.name
   address_prefixes = ["10.0.1.0/24"]
 }
 
-resource "azurerm_public_ip" "main" {
-  name = "pip-${random_string.suffix.result}"
-  location = azurerm_resource_group.main.location
-  resource_group_name = azurerm_resource_group.main.name
-  allocation_method = "Dynamic"
-}
-
-resource "azurerm_network_interface" "main" {
+resource "azurerm_network_interface" "example" {
   name = "nic-${random_string.suffix.result}"
-  location = azurerm_resource_group.main.location
-  resource_group_name = azurerm_resource_group.main.name
+  location = azurerm_resource_group.example.location
+  resource_group_name = azurerm_resource_group.example.name
 
   ip_configuration {
     name = "ipconfig-${random_string.suffix.result}"
+    subnet_id = azurerm_subnet.example.id
     private_ip_address_allocation = "Dynamic"
-    public_ip_address_id = azurerm_public_ip.main.id
-    subnet_id = azurerm_subnet.main.id
   }
 }
 
-resource "azurerm_linux_virtual_machine" "main" {
+resource "azurerm_linux_virtual_machine" "example" {
   name = "vm-${random_string.suffix.result}"
-  resource_group_name = azurerm_resource_group.main.name
-  location = azurerm_resource_group.main.location
-  size = "Standard_B1s" # Cost-effective B-series VM
+  resource_group_name = azurerm_resource_group.example.name
+  location = azurerm_resource_group.example.location
+  size = "Standard_B1s"  # B-series for cost optimization
   admin_username = "adminuser"
-  admin_password = "Password1234!" # Use secure methods in production
-  network_interface_ids = [
-  azurerm_network_interface.main.id,
-  ]
+  admin_password = "P@ssw0rd1234!" # Change this to a secure password
+
+  network_interface_ids = [azurerm_network_interface.example.id]
 
   os_disk {
     caching = "ReadWrite"
     create_option = "FromImage"
-    managed_disk_type = "Standard_LRS" # Cost-effective storage
+    managed_disk_type = "Standard_LRS"  # Cost-effective option
   }
 
   source_image_reference {
@@ -86,21 +86,13 @@ resource "azurerm_linux_virtual_machine" "main" {
 }
 
 output "resource_group_name" {
-  value = azurerm_resource_group.main.name
+  value = azurerm_resource_group.example.name
 }
 
-output "virtual_network_name" {
-  value = azurerm_virtual_network.main.name
+output "virtual_machine_id" {
+  value = azurerm_linux_virtual_machine.example.id
 }
 
-output "subnet_name" {
-  value = azurerm_subnet.main.name
-}
-
-output "public_ip_address" {
-  value = azurerm_public_ip.main.ip_address
-}
-
-output "vm_id" {
-  value = azurerm_linux_virtual_machine.main.id
+output "network_interface_id" {
+  value = azurerm_network_interface.example.id
 }
