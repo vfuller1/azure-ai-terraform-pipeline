@@ -81,9 +81,8 @@ resource "azurerm_linux_virtual_machine" "example" {
   ]
 
   os_disk {
-    caching           = "ReadWrite"
-    create_option     = "FromImage"
-    managed_disk_type = "Standard_LRS" # Cost-effective storage
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS" # Cost-effective storage
   }
 
   source_image_reference {
