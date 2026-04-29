@@ -4,7 +4,6 @@ terraform {
       source = "hashicorp/azurerm"
       version = "~> 3.0"
     }
-
     random = {
       source = "hashicorp/random"
       version = "~> 3.0"
@@ -30,31 +29,33 @@ resource "azurerm_resource_group" "main" {
 
 resource "azurerm_virtual_network" "main" {
   name = "vnet-${random_string.suffix.result}"
-  resource_group_name = azurerm_resource_group.main.name
-  location = azurerm_resource_group.main.location
   address_space = ["10.0.0.0/16"]
+  location = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
+}
 
-  subnet {
-    name = "subnet-${random_string.suffix.result}"
-    address_prefix = "10.0.1.0/24"
-  }
+resource "azurerm_subnet" "main" {
+  name = "subnet-${random_string.suffix.result}"
+  resource_group_name = azurerm_resource_group.main.name
+  virtual_network_name = azurerm_virtual_network.main.name
+  address_prefixes = ["10.0.1.0/24"]
 }
 
 resource "azurerm_public_ip" "main" {
-  name = "pip-${random_string.suffix.result}"
-  resource_group_name = azurerm_resource_group.main.name
+  name = "publicip-${random_string.suffix.result}"
   location = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
   allocation_method = "Dynamic"
 }
 
 resource "azurerm_network_interface" "main" {
   name = "nic-${random_string.suffix.result}"
-  resource_group_name = azurerm_resource_group.main.name
   location = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
 
   ip_configuration {
     name = "ipconfig-${random_string.suffix.result}"
-    subnet_id = azurerm_virtual_network.main.subnet[0].id
+    subnet_id = azurerm_subnet.main.id
     private_ip_address_allocation = "Dynamic"
     public_ip_address_id = azurerm_public_ip.main.id
   }
@@ -64,9 +65,10 @@ resource "azurerm_linux_virtual_machine" "main" {
   name = "vm-${random_string.suffix.result}"
   resource_group_name = azurerm_resource_group.main.name
   location = azurerm_resource_group.main.location
-  size = "Standard_B1s"  # B-series VM for cost-effectiveness
+  size = "Standard_B1s"  # Low-cost B-series VM
   admin_username = "adminuser"
-  admin_password = random_password.password.result
+  admin_password = "P@ssw0rd1234!" # Use secure methods in production
+
   network_interface_ids = [
   azurerm_network_interface.main.id,
   ]
@@ -74,7 +76,7 @@ resource "azurerm_linux_virtual_machine" "main" {
   os_disk {
     caching = "ReadWrite"
     create_option = "FromImage"
-    managed_disk_type = "Standard_LRS"  # Optimized storage type for cost
+    managed_disk_type = "Standard_LRS"  # Low-cost storage
   }
 
   source_image_reference {
@@ -85,37 +87,14 @@ resource "azurerm_linux_virtual_machine" "main" {
   }
 }
 
-resource "azurerm_storage_account" "main" {
-  name = "st${random_string.suffix.result}"
-  resource_group_name = azurerm_resource_group.main.name
-  location = azurerm_resource_group.main.location
-  account_tier = "Standard"  # Cost-effective tier
-  account_replication_type = "LRS"      # Locally redundant storage
+resource "outputs" "public_ip" {
+  value = azurerm_public_ip.main.ip_address
 }
 
-resource "random_password" "password" {
-  length = 12
-  special = true
-}
-
-variable "vm_admin_password" {
-  description = "Admin password for the virtual machine"
-  type = string
-  sensitive = true
+output "vm_id" {
+  value = azurerm_linux_virtual_machine.main.id
 }
 
 output "resource_group_name" {
   value = azurerm_resource_group.main.name
-}
-
-output "public_ip" {
-  value = azurerm_public_ip.main.ip_address
-}
-
-output "vm_name" {
-  value = azurerm_linux_virtual_machine.main.name
-}
-
-output "storage_account_name" {
-  value = azurerm_storage_account.main.name
 }
