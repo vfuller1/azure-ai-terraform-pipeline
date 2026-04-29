@@ -55,12 +55,12 @@ resource "azurerm_network_interface" "example" {
 }
 
 resource "azurerm_storage_account" "example" {
-  name                  = "st${random_string.suffix.result}"
-  resource_group_name   = azurerm_resource_group.example.name
-  location              = azurerm_resource_group.example.location
-  account_tier         = "Standard"
+  name                     = "st${random_string.suffix.result}"
+  resource_group_name      = azurerm_resource_group.example.name
+  location                 = azurerm_resource_group.example.location
+  account_tier            = "Standard"
   account_replication_type = "LRS"
-  min_tls_version      = "TLS1_2"
+  min_tls_version         = "TLS1_2"
 }
 
 resource "random_password" "password" {
@@ -81,9 +81,9 @@ resource "azurerm_linux_virtual_machine" "example" {
   ]
 
   os_disk {
-    caching              = "ReadWrite"
-    create_option        = "FromImage"
-    managed_disk_type    = "Standard_LRS" # Cost-effective storage
+    caching           = "ReadWrite"
+    create_option     = "FromImage"
+    managed_disk_type = "Standard_LRS" # Cost-effective storage
   }
 
   source_image_reference {
