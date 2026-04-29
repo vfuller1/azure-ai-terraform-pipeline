@@ -4,27 +4,17 @@ terraform {
       source = "hashicorp/azurerm"
       version = "~> 3.0"
     }
-
     random = {
       source = "hashicorp/random"
       version = "~> 3.0"
     }
   }
 
-  required_version = ">=1.0"
+  required_version = ">=1.3.0"
 }
 
 provider "azurerm" {
   features {}
-}
-
-terraform {
-  backend "azurerm" {
-    resource_group_name  = "tfstate-rg"
-    storage_account_name = "terraformapproval"
-    container_name       = "tfstate"
-    key                  = "terraform.tfstate"
-  }
 }
 
 resource "random_string" "suffix" {
@@ -32,75 +22,73 @@ resource "random_string" "suffix" {
   special = false
 }
 
-resource "azurerm_resource_group" "example" {
+resource "azurerm_resource_group" "rg" {
   name = "rg-${random_string.suffix.result}"
   location = "East US"
 }
 
-resource "azurerm_virtual_network" "example" {
+resource "azurerm_virtual_network" "vnet" {
   name = "vnet-${random_string.suffix.result}"
   address_space = ["10.0.0.0/16"]
-  location = azurerm_resource_group.example.location
-  resource_group_name = azurerm_resource_group.example.name
+  location = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
 }
 
-resource "azurerm_subnet" "example" {
+resource "azurerm_subnet" "subnet" {
   name = "subnet-${random_string.suffix.result}"
-  resource_group_name = azurerm_resource_group.example.name
-  virtual_network_name = azurerm_virtual_network.example.name
+  resource_group_name = azurerm_resource_group.rg.name
+  virtual_network_name = azurerm_virtual_network.vnet.name
   address_prefixes = ["10.0.1.0/24"]
 }
 
-resource "azurerm_network_interface" "example" {
+resource "azurerm_public_ip" "public_ip" {
+  name = "pubip-${random_string.suffix.result}"
+  location = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  allocation_method = "Static"
+}
+
+resource "azurerm_network_interface" "nic" {
   name = "nic-${random_string.suffix.result}"
-  location = azurerm_resource_group.example.location
-  resource_group_name = azurerm_resource_group.example.name
+  location = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
 
   ip_configuration {
     name = "ipconfig-${random_string.suffix.result}"
-    subnet_id = azurerm_subnet.example.id
+    subnet_id = azurerm_subnet.subnet.id
     private_ip_address_allocation = "Dynamic"
+    public_ip_address_id = azurerm_public_ip.public_ip.id
   }
 }
 
-resource "azurerm_virtual_machine" "example" {
+resource "azurerm_linux_virtual_machine" "vm" {
   name = "vm-${random_string.suffix.result}"
-  location = azurerm_resource_group.example.location
-  resource_group_name = azurerm_resource_group.example.name
-  network_interface_ids = [azurerm_network_interface.example.id]
+  resource_group_name = azurerm_resource_group.rg.name
+  location = azurerm_resource_group.rg.location
+  size = "Standard_B1ls"  # Optimized for low cost
+  admin_username = "adminuser"
+  admin_password = "P@ssw0rd1234"  # Change this in production!
 
-  vm_size = "Standard_B1s" # Low-cost B-series VM
+  network_interface_ids = [azurerm_network_interface.nic.id]
 
-  storage_os_disk {
-    name = "osdisk-${random_string.suffix.result}"
+  os_disk {
     caching = "ReadWrite"
     create_option = "FromImage"
-    managed_disk_type = "Standard_LRS" # Cost-effective storage option
+    managed_disk_type = "Standard_LRS"  # Cost-effective storage
   }
 
-  os_profile {
-    computer_name = "hostname"
-    admin_username = "adminuser"
-    admin_password = "P@ssword1234!"
-  }
-
-  os_profile_linux_config {
-    disable_password_authentication = false
-  }
-
-  lifecycle {
-    ignore_changes = [network_interface_ids]
+  source_image_reference {
+    publisher = "Canonical"
+    offer = "UbuntuServer"
+    sku = "18.04-LTS"
+    version = "latest"
   }
 }
 
-output "resource_group_name" {
-  value = azurerm_resource_group.example.name
+output "public_ip" {
+  value = azurerm_public_ip.public_ip.ip_address
 }
 
 output "vm_id" {
-  value = azurerm_virtual_machine.example.id
-}
-
-output "network_interface_id" {
-  value = azurerm_network_interface.example.id
+  value = azurerm_linux_virtual_machine.vm.id
 }
