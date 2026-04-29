@@ -4,6 +4,7 @@ terraform {
       source = "hashicorp/azurerm"
       version = "~> 3.0"
     }
+
     random = {
       source = "hashicorp/random"
       version = "~> 3.0"
@@ -20,91 +21,77 @@ provider "azurerm" {
 resource "random_string" "suffix" {
   length = 8
   special = false
-  number = true
-  upper = false
 }
 
-variable "location" {
-  description = "The Azure region where resources will be created."
-  default = "East US"
-}
-
-variable "vm_size" {
-  description = "Size of the virtual machine."
-  default = "Standard_B1s"  # Low-cost B-series VM
-}
-
-resource "azurerm_resource_group" "main" {
+resource "azurerm_resource_group" "example" {
   name = "rg-${random_string.suffix.result}"
-  location = var.location
+  location = "East US"
 }
 
-resource "azurerm_virtual_network" "main" {
+resource "azurerm_virtual_network" "example" {
   name = "vnet-${random_string.suffix.result}"
   address_space = ["10.0.0.0/16"]
-  location = azurerm_resource_group.main.location
-  resource_group_name = azurerm_resource_group.main.name
+  location = azurerm_resource_group.example.location
+  resource_group_name = azurerm_resource_group.example.name
 }
 
-resource "azurerm_subnet" "main" {
+resource "azurerm_subnet" "example" {
   name = "subnet-${random_string.suffix.result}"
-  resource_group_name = azurerm_resource_group.main.name
-  virtual_network_name = azurerm_virtual_network.main.name
+  resource_group_name = azurerm_resource_group.example.name
+  virtual_network_name = azurerm_virtual_network.example.name
   address_prefixes = ["10.0.1.0/24"]
 }
 
-resource "azurerm_network_interface" "main" {
+resource "azurerm_network_interface" "example" {
   name = "nic-${random_string.suffix.result}"
-  location = azurerm_resource_group.main.location
-  resource_group_name = azurerm_resource_group.main.name
+  location = azurerm_resource_group.example.location
+  resource_group_name = azurerm_resource_group.example.name
 
   ip_configuration {
     name = "ipconfig-${random_string.suffix.result}"
-    subnet_id = azurerm_subnet.main.id
+    subnet_id = azurerm_subnet.example.id
     private_ip_address_allocation = "Dynamic"
   }
 }
 
-resource "azurerm_windows_virtual_machine" "main" {
+resource "azurerm_virtual_machine" "example" {
   name = "vm-${random_string.suffix.result}"
-  resource_group_name = azurerm_resource_group.main.name
-  location = azurerm_resource_group.main.location
-  size = var.vm_size
-  admin_username = "adminuser"
-  admin_password = "P@ssword1234!"  # Change as necessary
-  network_interface_ids = [azurerm_network_interface.main.id]
+  location = azurerm_resource_group.example.location
+  resource_group_name = azurerm_resource_group.example.name
+  network_interface_ids = [azurerm_network_interface.example.id]
 
-  os_disk {
-    caching = "ReadWrite"
+  vm_size = "Standard_B1s" # Low-cost B-series VM
+
+  storage_os_disk {
     name = "osdisk-${random_string.suffix.result}"
-    disk_size_gb = 30  # Standard for low-cost
-    managed_disk_type = "Standard_LRS"  # Low-cost storage option
+    caching = "ReadWrite"
+    create_option = "FromImage"
+    managed_disk_type = "Standard_LRS" # Cost-effective storage option
   }
 
-  source_image_reference {
-    publisher = "MicrosoftWindowsServer"
-    offer = "WindowsServer"
-    sku = "2019-Datacenter"
-    version = "latest"
+  os_profile {
+    computer_name = "hostname"
+    admin_username = "adminuser"
+    admin_password = "P@ssword1234!"
+  }
+
+  os_profile_linux_config {
+    disable_password_authentication = false
+  }
+
+  lifecycle {
+    ignore_changes = [network_interface_ids]
   }
 }
 
 output "resource_group_name" {
-  value = azurerm_resource_group.main.name
+  value = azurerm_resource_group.example.name
 }
 
-output "virtual_network_name" {
-  value = azurerm_virtual_network.main.name
+output "vm_id" {
+  value = azurerm_virtual_machine.example.id
 }
 
-output "subnet_name" {
-  value = azurerm_subnet.main.name
-}
-
-output "network_interface_name" {
-  value = azurerm_network_interface.main.name
-}
-
-output "virtual_machine_name" {
-  value = azurerm_windows_virtual_machine.main.name
+output "network_interface_id" {
+  value = azurerm_network_interface.example.id
 }
